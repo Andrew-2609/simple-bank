@@ -45,6 +45,23 @@ func TestGetAccount(t *testing.T) {
 	require.Exactly(t, account, foundAccount)
 }
 
+func TestListAccounts(t *testing.T) {
+	for i := 0; i < 10; i++ {
+		createRandomAccount(t)
+	}
+
+	arg := ListAccountsParams{Limit: 5, Offset: 5}
+
+	foundAccounts, err := testQueries.ListAccounts(context.Background(), arg)
+
+	require.NoError(t, err)
+	require.Len(t, foundAccounts, 5)
+
+	for _, account := range foundAccounts {
+		require.NotEmpty(t, account)
+	}
+}
+
 func TestUpdateAccount(t *testing.T) {
 	originalAccount := createRandomAccount(t)
 
