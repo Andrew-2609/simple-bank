@@ -2,6 +2,7 @@ package db
 
 import (
 	"context"
+	"database/sql"
 	"testing"
 
 	"github.com/Andrew-2609/simple-bank/util"
@@ -66,4 +67,16 @@ func TestUpdateAccount(t *testing.T) {
 
 	require.NotEqual(t, originalAccount.Balance, updatedAccount.Balance)
 	require.Equal(t, newBalance, updatedAccount.Balance)
+}
+
+func TestDeleteAccount(t *testing.T) {
+	account := createRandomAccount(t)
+
+	err := testQueries.DeleteAccount(context.Background(), account.ID)
+	require.NoError(t, err)
+
+	foundAccount, err := testQueries.GetAccount(context.Background(), account.ID)
+
+	require.EqualError(t, err, sql.ErrNoRows.Error())
+	require.Empty(t, foundAccount)
 }
