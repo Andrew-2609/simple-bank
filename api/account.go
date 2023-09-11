@@ -2,6 +2,7 @@ package api
 
 import (
 	"database/sql"
+	"fmt"
 	"net/http"
 
 	db "github.com/Andrew-2609/simple-bank/db/sqlc"
@@ -35,6 +36,37 @@ func (server *Server) createAccount(ctx *gin.Context) {
 	}
 
 	ctx.JSON(http.StatusCreated, newAccount)
+}
+
+type listAccountsRequest struct {
+	Page     int32 `form:"page" binding:"required,min=1"`
+	Quantity int32 `form:"quantity" binding:"max=200"`
+}
+
+func (server *Server) listAccounts(ctx *gin.Context) {
+	var req listAccountsRequest
+
+	if err := ctx.BindQuery(&req); err != nil {
+		ctx.JSON(http.StatusBadRequest, errorResponse(err))
+		return
+	}
+
+	if req.Quantity == 0 {
+		req.Quantity = 40
+	}
+
+	foundAccounts, err := server.store.ListAccounts(ctx, db.ListAccountsParams{
+		Limit:  req.Quantity,
+		Offset: (req.Page - 1) * req.Quantity,
+	})
+
+	if err != nil {
+		ctx.JSON(http.StatusInternalServerError, errorResponse(err))
+		return
+	}
+
+	ctx.Header("total", fmt.Sprint(len(foundAccounts)))
+	ctx.JSON(http.StatusOK, foundAccounts)
 }
 
 type getAccountRequest struct {
