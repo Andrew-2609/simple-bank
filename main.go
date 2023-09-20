@@ -23,7 +23,7 @@ func main() {
 		log.Fatalf("ERROR: could not connect to the Database: %v", err)
 	}
 
-	store := db.NewStore(conn)
+	store := db.NewSQLStore(conn)
 
 	err = api.NewServer(store).Start(config.ServerAddress)
 
