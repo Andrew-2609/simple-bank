@@ -121,9 +121,16 @@ func TestGetAccountAPI(t *testing.T) {
 
 func TestCreateAccountAPI(t *testing.T) {
 	expectedAccount := createRandomAccount()
+
 	validArg := db.CreateAccountParams{
 		Owner:    util.RandomOwner(),
 		Currency: util.RandomCurrency(),
+	}
+
+	expectedArg := db.CreateAccountParams{
+		Owner:    validArg.Owner,
+		Balance:  0,
+		Currency: validArg.Currency,
 	}
 
 	testCases := []struct {
@@ -137,16 +144,7 @@ func TestCreateAccountAPI(t *testing.T) {
 			arg:  validArg,
 			buildStubs: func(store *mockdb.MockStore) {
 				store.EXPECT().
-					CreateAccount(
-						gomock.Any(),
-						gomock.Eq(
-							db.CreateAccountParams{
-								Owner:    validArg.Owner,
-								Balance:  0,
-								Currency: validArg.Currency,
-							},
-						),
-					).
+					CreateAccount(gomock.Any(), gomock.Eq(expectedArg)).
 					Times(1).
 					Return(expectedAccount, nil)
 			},
@@ -164,6 +162,20 @@ func TestCreateAccountAPI(t *testing.T) {
 			checkResponse: func(t *testing.T, recorder *httptest.ResponseRecorder) {
 				require.Equal(t, http.StatusBadRequest, recorder.Code)
 				require.Exactly(t, map[string]interface{}{"error": "Key: 'createAccountRequest.Owner' Error:Field validation for 'Owner' failed on the 'required' tag\nKey: 'createAccountRequest.Currency' Error:Field validation for 'Currency' failed on the 'required' tag"}, unmarshallAny(t, recorder.Body))
+			},
+		},
+		{
+			name: "Internal Server Error",
+			arg:  validArg,
+			buildStubs: func(store *mockdb.MockStore) {
+				store.EXPECT().
+					CreateAccount(gomock.Any(), gomock.Eq(expectedArg)).
+					Times(1).
+					Return(db.Account{}, sql.ErrConnDone)
+			},
+			checkResponse: func(t *testing.T, recorder *httptest.ResponseRecorder) {
+				require.Equal(t, http.StatusInternalServerError, recorder.Code)
+				require.Exactly(t, map[string]interface{}{"error": sql.ErrConnDone.Error()}, unmarshallAny(t, recorder.Body))
 			},
 		},
 	}
