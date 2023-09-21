@@ -2,6 +2,7 @@ package api
 
 import (
 	"bytes"
+	"database/sql"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
@@ -30,6 +31,12 @@ func unmarshallAccount(t *testing.T, responseBody *bytes.Buffer) db.Account {
 	return responseAccount
 }
 
+func unmarshallAny(t *testing.T, responseBody *bytes.Buffer) any {
+	unmarshalledObject, err := util.UnmarshallJsonBody[any](responseBody)
+	require.NoError(t, err)
+	return unmarshalledObject
+}
+
 func TestGetAccountAPI(t *testing.T) {
 	account := createRandomAccount()
 
@@ -50,7 +57,28 @@ func TestGetAccountAPI(t *testing.T) {
 				require.Exactly(t, account, unmarshallAccount(t, recorder.Body))
 			},
 		},
-		// TODO: add more cases
+		{
+			name:      "Bad Request",
+			accountId: 0,
+			buildStubs: func(store *mockdb.MockStore) {
+				store.EXPECT().GetAccount(gomock.Any(), gomock.Any()).Times(0)
+			},
+			checkResponse: func(t *testing.T, recorder *httptest.ResponseRecorder) {
+				require.Equal(t, http.StatusBadRequest, recorder.Code)
+				require.Exactly(t, map[string]interface{}{"error": "Key: 'getAccountRequest.ID' Error:Field validation for 'ID' failed on the 'required' tag"}, unmarshallAny(t, recorder.Body))
+			},
+		},
+		{
+			name:      "Not Found",
+			accountId: account.ID,
+			buildStubs: func(store *mockdb.MockStore) {
+				store.EXPECT().GetAccount(gomock.Any(), gomock.Eq(account.ID)).Times(1).Return(db.Account{}, sql.ErrNoRows)
+			},
+			checkResponse: func(t *testing.T, recorder *httptest.ResponseRecorder) {
+				require.Equal(t, http.StatusNotFound, recorder.Code)
+				require.Exactly(t, map[string]interface{}{"error": sql.ErrNoRows.Error()}, unmarshallAny(t, recorder.Body))
+			},
+		},
 	}
 
 	for _, testCase := range testCases {
@@ -66,7 +94,7 @@ func TestGetAccountAPI(t *testing.T) {
 			server := NewServer(store)
 			recorder := httptest.NewRecorder()
 
-			url := fmt.Sprintf("/accounts/%d", account.ID)
+			url := fmt.Sprintf("/accounts/%d", testCase.accountId)
 
 			request, err := http.NewRequest("GET", url, nil)
 			require.NoError(t, err)
