@@ -3,6 +3,7 @@ package api
 import (
 	"bytes"
 	"database/sql"
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
@@ -108,6 +109,66 @@ func TestGetAccountAPI(t *testing.T) {
 			url := fmt.Sprintf("/accounts/%d", testCase.accountId)
 
 			request, err := http.NewRequest("GET", url, nil)
+			require.NoError(t, err)
+
+			server.router.ServeHTTP(recorder, request)
+
+			// check response
+			testCase.checkResponse(t, recorder)
+		})
+	}
+}
+
+func TestCreateAccountAPI(t *testing.T) {
+	expectedAccount := createRandomAccount()
+	validArg := db.CreateAccountParams{
+		Owner:    util.RandomOwner(),
+		Currency: util.RandomCurrency(),
+	}
+
+	testCases := []struct {
+		name          string
+		arg           db.CreateAccountParams
+		buildStubs    func(store *mockdb.MockStore)
+		checkResponse func(t *testing.T, recorder *httptest.ResponseRecorder)
+	}{
+		{
+			name: "Created",
+			arg:  validArg,
+			buildStubs: func(store *mockdb.MockStore) {
+				store.EXPECT().
+					CreateAccount(gomock.Any(), gomock.Eq(validArg)).
+					Times(1).
+					Return(expectedAccount, nil)
+			},
+			checkResponse: func(t *testing.T, recorder *httptest.ResponseRecorder) {
+				require.Equal(t, http.StatusCreated, recorder.Code)
+				require.Exactly(t, expectedAccount, unmarshallAccount(t, recorder.Body))
+			},
+		},
+	}
+
+	for _, testCase := range testCases {
+		t.Run(testCase.name, func(t *testing.T) {
+			ctrl := gomock.NewController(t)
+			defer ctrl.Finish()
+
+			// build stubs
+			store := mockdb.NewMockStore(ctrl)
+			testCase.buildStubs(store)
+
+			// start test server and send request
+			server := NewServer(store)
+			recorder := httptest.NewRecorder()
+
+			url := fmt.Sprintf("/accounts")
+
+			var buf bytes.Buffer
+
+			err := json.NewEncoder(&buf).Encode(testCase.arg)
+			require.NoError(t, err)
+
+			request, err := http.NewRequest("POST", url, &buf)
 			require.NoError(t, err)
 
 			server.router.ServeHTTP(recorder, request)
