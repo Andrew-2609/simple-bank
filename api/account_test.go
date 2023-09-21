@@ -26,23 +26,48 @@ func createRandomAccount() db.Account {
 func TestGetAccountAPI(t *testing.T) {
 	account := createRandomAccount()
 
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
+	testCases := []struct {
+		name          string
+		accountId     int64
+		buildStubs    func(store *mockdb.MockStore)
+		checkResponse func(t *testing.T, recorder *httptest.ResponseRecorder)
+	}{
+		{
+			name:      "OK",
+			accountId: account.ID,
+			buildStubs: func(store *mockdb.MockStore) {
+				store.EXPECT().GetAccount(gomock.Any(), gomock.Eq(account.ID)).Times(1).Return(account, nil)
+			},
+			checkResponse: func(t *testing.T, recorder *httptest.ResponseRecorder) {
+				require.Equal(t, http.StatusOK, recorder.Code)
+				require.Exactly(t, account, util.UnmarshallJsonBody[db.Account](t, recorder.Body))
+			},
+		},
+		// TODO: add more cases
+	}
 
-	store := mockdb.NewMockStore(ctrl)
+	for _, testCase := range testCases {
+		t.Run(testCase.name, func(t *testing.T) {
+			ctrl := gomock.NewController(t)
+			defer ctrl.Finish()
 
-	store.EXPECT().GetAccount(gomock.Any(), gomock.Eq(account.ID)).Times(1).Return(account, nil)
+			// build stubs
+			store := mockdb.NewMockStore(ctrl)
+			testCase.buildStubs(store)
 
-	server := NewServer(store)
-	recorder := httptest.NewRecorder()
+			// start test server and send request
+			server := NewServer(store)
+			recorder := httptest.NewRecorder()
 
-	url := fmt.Sprintf("/accounts/%d", account.ID)
+			url := fmt.Sprintf("/accounts/%d", account.ID)
 
-	request, err := http.NewRequest("GET", url, nil)
-	require.NoError(t, err)
+			request, err := http.NewRequest("GET", url, nil)
+			require.NoError(t, err)
 
-	server.router.ServeHTTP(recorder, request)
+			server.router.ServeHTTP(recorder, request)
 
-	require.Equal(t, http.StatusOK, recorder.Code)
-	require.Exactly(t, account, util.UnmarshallJsonBody[db.Account](t, recorder.Body))
+			// check response
+			testCase.checkResponse(t, recorder)
+		})
+	}
 }
