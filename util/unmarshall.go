@@ -4,19 +4,16 @@ import (
 	"bytes"
 	"encoding/json"
 	"io"
-	"testing"
-
-	"github.com/stretchr/testify/require"
 )
 
-func UnmarshallJsonBody[U any](t *testing.T, responseBody *bytes.Buffer) U {
+func UnmarshallJsonBody[U any](responseBody *bytes.Buffer) (unmarshalledResponse U, err error) {
 	data, err := io.ReadAll(responseBody)
-	require.NoError(t, err)
 
-	var responseAccount U
+	if err != nil {
+		return
+	}
 
-	err = json.Unmarshal(data, &responseAccount)
-	require.NoError(t, err)
+	err = json.Unmarshal(data, &unmarshalledResponse)
 
-	return responseAccount
+	return
 }

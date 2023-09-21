@@ -1,6 +1,7 @@
 package api
 
 import (
+	"bytes"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
@@ -23,6 +24,12 @@ func createRandomAccount() db.Account {
 	}
 }
 
+func unmarshallAccount(t *testing.T, responseBody *bytes.Buffer) db.Account {
+	responseAccount, err := util.UnmarshallJsonBody[db.Account](responseBody)
+	require.NoError(t, err)
+	return responseAccount
+}
+
 func TestGetAccountAPI(t *testing.T) {
 	account := createRandomAccount()
 
@@ -40,7 +47,7 @@ func TestGetAccountAPI(t *testing.T) {
 			},
 			checkResponse: func(t *testing.T, recorder *httptest.ResponseRecorder) {
 				require.Equal(t, http.StatusOK, recorder.Code)
-				require.Exactly(t, account, util.UnmarshallJsonBody[db.Account](t, recorder.Body))
+				require.Exactly(t, account, unmarshallAccount(t, recorder.Body))
 			},
 		},
 		// TODO: add more cases
