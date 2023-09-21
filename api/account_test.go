@@ -136,14 +136,22 @@ func TestCreateAccountAPI(t *testing.T) {
 			name: "Created",
 			arg:  validArg,
 			buildStubs: func(store *mockdb.MockStore) {
-				store.EXPECT().
-					CreateAccount(gomock.Any(), gomock.Eq(validArg)).
-					Times(1).
-					Return(expectedAccount, nil)
+				store.EXPECT().CreateAccount(gomock.Any(), gomock.Eq(validArg)).Times(1).Return(expectedAccount, nil)
 			},
 			checkResponse: func(t *testing.T, recorder *httptest.ResponseRecorder) {
 				require.Equal(t, http.StatusCreated, recorder.Code)
 				require.Exactly(t, expectedAccount, unmarshallAccount(t, recorder.Body))
+			},
+		},
+		{
+			name: "Bad Request",
+			arg:  db.CreateAccountParams{},
+			buildStubs: func(store *mockdb.MockStore) {
+				store.EXPECT().CreateAccount(gomock.Any(), gomock.Any()).Times(0)
+			},
+			checkResponse: func(t *testing.T, recorder *httptest.ResponseRecorder) {
+				require.Equal(t, http.StatusBadRequest, recorder.Code)
+				require.Exactly(t, map[string]interface{}{"error": "Key: 'createAccountRequest.Owner' Error:Field validation for 'Owner' failed on the 'required' tag\nKey: 'createAccountRequest.Currency' Error:Field validation for 'Currency' failed on the 'required' tag"}, unmarshallAny(t, recorder.Body))
 			},
 		},
 	}
