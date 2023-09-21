@@ -136,7 +136,19 @@ func TestCreateAccountAPI(t *testing.T) {
 			name: "Created",
 			arg:  validArg,
 			buildStubs: func(store *mockdb.MockStore) {
-				store.EXPECT().CreateAccount(gomock.Any(), gomock.Eq(validArg)).Times(1).Return(expectedAccount, nil)
+				store.EXPECT().
+					CreateAccount(
+						gomock.Any(),
+						gomock.Eq(
+							db.CreateAccountParams{
+								Owner:    validArg.Owner,
+								Balance:  0,
+								Currency: validArg.Currency,
+							},
+						),
+					).
+					Times(1).
+					Return(expectedAccount, nil)
 			},
 			checkResponse: func(t *testing.T, recorder *httptest.ResponseRecorder) {
 				require.Equal(t, http.StatusCreated, recorder.Code)
