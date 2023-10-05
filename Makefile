@@ -23,7 +23,7 @@ mock:
 	mockgen -destination db/mock/store.go -package mockdb github.com/Andrew-2609/simple-bank/db/sqlc Store
 
 test:
-	go test -v -cover ./...
+	go clean -testcache && grc go test -v -cover ./...
 
 serve:
 	go run main.go
