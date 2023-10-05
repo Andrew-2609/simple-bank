@@ -214,8 +214,13 @@ func TestCreateAccountAPI(t *testing.T) {
 func TestListAccountsAPI(t *testing.T) {
 	accounts := []db.Account{createRandomAccount(), createRandomAccount()}
 
-	expectedArg := db.ListAccountsParams{
+	expectedSpecifiedArg := db.ListAccountsParams{
 		Limit:  3,
+		Offset: 0,
+	}
+
+	expectedDefaultArg := db.ListAccountsParams{
+		Limit:  40,
 		Offset: 0,
 	}
 
@@ -227,12 +232,26 @@ func TestListAccountsAPI(t *testing.T) {
 		checkResponse func(t *testing.T, recorder *httptest.ResponseRecorder)
 	}{
 		{
-			name:     "OK",
+			name:     "OK With Specified Parameters Values",
 			page:     1,
 			quantity: 3,
 			buildStubs: func(store *mockdb.MockStore) {
 				store.EXPECT().
-					ListAccounts(gomock.Any(), gomock.Eq(expectedArg)).
+					ListAccounts(gomock.Any(), gomock.Eq(expectedSpecifiedArg)).
+					Times(1).
+					Return(accounts, nil)
+			},
+			checkResponse: func(t *testing.T, recorder *httptest.ResponseRecorder) {
+				require.Equal(t, http.StatusOK, recorder.Code)
+				fmt.Printf("Array format: %v", recorder.Body)
+			},
+		}, {
+			name:     "OK With Default Parameters Values",
+			page:     1,
+			quantity: 0,
+			buildStubs: func(store *mockdb.MockStore) {
+				store.EXPECT().
+					ListAccounts(gomock.Any(), gomock.Eq(expectedDefaultArg)).
 					Times(1).
 					Return(accounts, nil)
 			},
@@ -257,7 +276,7 @@ func TestListAccountsAPI(t *testing.T) {
 			quantity: 3,
 			buildStubs: func(store *mockdb.MockStore) {
 				store.EXPECT().
-					ListAccounts(gomock.Any(), gomock.Eq(expectedArg)).
+					ListAccounts(gomock.Any(), gomock.Eq(expectedSpecifiedArg)).
 					Times(1).
 					Return([]db.Account{}, sql.ErrConnDone)
 			},
