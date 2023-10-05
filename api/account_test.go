@@ -210,3 +210,86 @@ func TestCreateAccountAPI(t *testing.T) {
 		})
 	}
 }
+
+func TestListAccountsAPI(t *testing.T) {
+	accounts := []db.Account{createRandomAccount(), createRandomAccount()}
+
+	expectedArg := db.ListAccountsParams{
+		Limit:  3,
+		Offset: 0,
+	}
+
+	testCases := []struct {
+		name          string
+		page          int32
+		quantity      int32
+		buildStubs    func(store *mockdb.MockStore)
+		checkResponse func(t *testing.T, recorder *httptest.ResponseRecorder)
+	}{
+		{
+			name:     "OK",
+			page:     1,
+			quantity: 3,
+			buildStubs: func(store *mockdb.MockStore) {
+				store.EXPECT().
+					ListAccounts(gomock.Any(), gomock.Eq(expectedArg)).
+					Times(1).
+					Return(accounts, nil)
+			},
+			checkResponse: func(t *testing.T, recorder *httptest.ResponseRecorder) {
+				require.Equal(t, http.StatusOK, recorder.Code)
+				fmt.Printf("Array format: %v", recorder.Body)
+			},
+		}, {
+			name:     "Bad Request",
+			page:     -1,
+			quantity: 3,
+			buildStubs: func(store *mockdb.MockStore) {
+				store.EXPECT().ListAccounts(gomock.Any(), gomock.Any()).Times(0)
+			},
+			checkResponse: func(t *testing.T, recorder *httptest.ResponseRecorder) {
+				require.Equal(t, http.StatusBadRequest, recorder.Code)
+				require.Exactly(t, map[string]interface{}{"error": "Key: 'listAccountsRequest.Page' Error:Field validation for 'Page' failed on the 'min' tag"}, unmarshallAny(t, recorder.Body))
+			},
+		}, {
+			name:     "Internal Server Error",
+			page:     1,
+			quantity: 3,
+			buildStubs: func(store *mockdb.MockStore) {
+				store.EXPECT().
+					ListAccounts(gomock.Any(), gomock.Eq(expectedArg)).
+					Times(1).
+					Return([]db.Account{}, sql.ErrConnDone)
+			},
+			checkResponse: func(t *testing.T, recorder *httptest.ResponseRecorder) {
+				require.Equal(t, http.StatusInternalServerError, recorder.Code)
+				require.Exactly(t, map[string]interface{}{"error": sql.ErrConnDone.Error()}, unmarshallAny(t, recorder.Body))
+			},
+		},
+	}
+
+	for _, testCase := range testCases {
+		t.Run(testCase.name, func(t *testing.T) {
+			ctrl := gomock.NewController(t)
+			defer ctrl.Finish()
+
+			// build stubs
+			store := mockdb.NewMockStore(ctrl)
+			testCase.buildStubs(store)
+
+			// start test server and send request
+			server := NewServer(store)
+			recorder := httptest.NewRecorder()
+
+			url := fmt.Sprintf("/accounts?page=%d&quantity=%d", testCase.page, testCase.quantity)
+
+			request, err := http.NewRequest("GET", url, nil)
+			require.NoError(t, err)
+
+			server.router.ServeHTTP(recorder, request)
+
+			// check response
+			testCase.checkResponse(t, recorder)
+		})
+	}
+}
