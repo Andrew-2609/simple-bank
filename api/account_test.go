@@ -312,3 +312,118 @@ func TestListAccountsAPI(t *testing.T) {
 		})
 	}
 }
+
+func TestUpdateAccountAPI(t *testing.T) {
+	originalAccount := createRandomAccount()
+
+	validArg := db.UpdateAccountParams{
+		ID:      originalAccount.ID,
+		Balance: 5000,
+	}
+
+	updatedAccount := db.Account{
+		ID:        originalAccount.ID,
+		Owner:     originalAccount.Owner,
+		Balance:   validArg.Balance,
+		Currency:  originalAccount.Currency,
+		CreatedAt: originalAccount.CreatedAt,
+	}
+
+	testCases := []struct {
+		name          string
+		arg           db.UpdateAccountParams
+		buildStubs    func(store *mockdb.MockStore)
+		checkResponse func(t *testing.T, recorder *httptest.ResponseRecorder)
+	}{
+		{
+			name: "OK",
+			arg:  validArg,
+			buildStubs: func(store *mockdb.MockStore) {
+				store.EXPECT().
+					UpdateAccount(gomock.Any(), gomock.Eq(validArg)).
+					Times(1).
+					Return(updatedAccount, nil)
+			},
+			checkResponse: func(t *testing.T, recorder *httptest.ResponseRecorder) {
+				require.Equal(t, http.StatusOK, recorder.Code)
+				require.Exactly(t, updatedAccount, unmarshallAccount(t, recorder.Body))
+			},
+		}, {
+			name: "Bad Request with Wrong Params",
+			arg:  db.UpdateAccountParams{ID: -1, Balance: 3500},
+			buildStubs: func(store *mockdb.MockStore) {
+				store.EXPECT().UpdateAccount(gomock.Any(), gomock.Any()).Times(0)
+			},
+			checkResponse: func(t *testing.T, recorder *httptest.ResponseRecorder) {
+				require.Equal(t, http.StatusBadRequest, recorder.Code)
+				require.Exactly(t, map[string]interface{}{"error": "Key: 'ID' Error:Field validation for 'ID' failed on the 'min' tag"}, unmarshallAny(t, recorder.Body))
+			},
+		}, {
+			name: "Bad Request with Wrong Body",
+			arg:  db.UpdateAccountParams{ID: originalAccount.ID, Balance: -3000},
+			buildStubs: func(store *mockdb.MockStore) {
+				store.EXPECT().UpdateAccount(gomock.Any(), gomock.Any()).Times(0)
+			},
+			checkResponse: func(t *testing.T, recorder *httptest.ResponseRecorder) {
+				require.Equal(t, http.StatusBadRequest, recorder.Code)
+				require.Exactly(t, map[string]interface{}{"error": "Key: 'Balance' Error:Field validation for 'Balance' failed on the 'min' tag"}, unmarshallAny(t, recorder.Body))
+			},
+		}, {
+			name: "Not Found",
+			arg:  validArg,
+			buildStubs: func(store *mockdb.MockStore) {
+				store.EXPECT().
+					UpdateAccount(gomock.Any(), validArg).
+					Times(1).
+					Return(db.Account{}, sql.ErrNoRows)
+			},
+			checkResponse: func(t *testing.T, recorder *httptest.ResponseRecorder) {
+				require.Equal(t, http.StatusNotFound, recorder.Code)
+				require.Exactly(t, map[string]interface{}{"error": sql.ErrNoRows.Error()}, unmarshallAny(t, recorder.Body))
+			},
+		}, {
+			name: "Internal Server Error",
+			arg:  validArg,
+			buildStubs: func(store *mockdb.MockStore) {
+				store.EXPECT().
+					UpdateAccount(gomock.Any(), validArg).
+					Times(1).
+					Return(db.Account{}, sql.ErrConnDone)
+			},
+			checkResponse: func(t *testing.T, recorder *httptest.ResponseRecorder) {
+				require.Equal(t, http.StatusInternalServerError, recorder.Code)
+				require.Exactly(t, map[string]interface{}{"error": sql.ErrConnDone.Error()}, unmarshallAny(t, recorder.Body))
+			},
+		},
+	}
+
+	for _, testCase := range testCases {
+		t.Run(testCase.name, func(t *testing.T) {
+			ctrl := gomock.NewController(t)
+			defer ctrl.Finish()
+
+			// build stubs
+			store := mockdb.NewMockStore(ctrl)
+			testCase.buildStubs(store)
+
+			// start test server and send request
+			server := NewServer(store)
+			recorder := httptest.NewRecorder()
+
+			url := fmt.Sprintf("/accounts/%d", testCase.arg.ID)
+
+			var buf bytes.Buffer
+
+			err := json.NewEncoder(&buf).Encode(testCase.arg)
+			require.NoError(t, err)
+
+			request, err := http.NewRequest("PUT", url, &buf)
+			require.NoError(t, err)
+
+			server.router.ServeHTTP(recorder, request)
+
+			// check resposne
+			testCase.checkResponse(t, recorder)
+		})
+	}
+}
