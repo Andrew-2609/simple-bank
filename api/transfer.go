@@ -9,7 +9,7 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-type createTransferRequest struct {
+type CreateTransferRequest struct {
 	FromAccountID int64  `json:"fromAccountId" binding:"required,min=1"`
 	ToAccountID   int64  `json:"toAccountId" binding:"required,min=1"`
 	Amount        int64  `json:"amount" binding:"required,gt=0"`
@@ -17,7 +17,7 @@ type createTransferRequest struct {
 }
 
 func (server *Server) createTransfer(ctx *gin.Context) {
-	var req createTransferRequest
+	var req CreateTransferRequest
 
 	if err := ctx.BindJSON(&req); err != nil {
 		ctx.JSON(http.StatusBadRequest, errorResponse(err))
