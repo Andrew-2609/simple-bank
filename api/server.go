@@ -17,6 +17,7 @@ func (server *Server) Start(address string) error {
 func NewServer(store db.Store) *Server {
 	server := &Server{store: store}
 	router := gin.Default()
+	router.SetTrustedProxies([]string{"127.0.0.1"})
 
 	router.POST("/accounts", server.createAccount)
 	router.GET("/accounts", server.listAccounts)
