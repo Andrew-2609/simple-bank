@@ -25,7 +25,7 @@ mock:
 test:
 	go clean -testcache && grc go test -v -cover ./...
 
-serve:
+up:
 	go run main.go
 
-.PHONY: postgres createdb dropdb enterdb migrateup migratedown sqlc mock test serve
+.PHONY: postgres createdb dropdb enterdb migrateup migratedown sqlc mock test up
