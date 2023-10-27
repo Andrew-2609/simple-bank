@@ -32,12 +32,6 @@ func unmarshallAccount(t *testing.T, responseBody *bytes.Buffer) db.Account {
 	return responseAccount
 }
 
-func unmarshallAny(t *testing.T, responseBody *bytes.Buffer) any {
-	unmarshalledObject, err := util.UnmarshallJsonBody[any](responseBody)
-	require.NoError(t, err)
-	return unmarshalledObject
-}
-
 func TestGetAccountAPI(t *testing.T) {
 	account := createRandomAccount()
 
@@ -66,7 +60,7 @@ func TestGetAccountAPI(t *testing.T) {
 			},
 			checkResponse: func(t *testing.T, recorder *httptest.ResponseRecorder) {
 				require.Equal(t, http.StatusBadRequest, recorder.Code)
-				require.Exactly(t, map[string]interface{}{"error": "Key: 'getAccountRequest.ID' Error:Field validation for 'ID' failed on the 'required' tag"}, unmarshallAny(t, recorder.Body))
+				require.Exactly(t, map[string]interface{}{"error": "Key: 'getAccountRequest.ID' Error:Field validation for 'ID' failed on the 'required' tag"}, UnmarshallAny(t, recorder.Body))
 			},
 		},
 		{
@@ -77,7 +71,7 @@ func TestGetAccountAPI(t *testing.T) {
 			},
 			checkResponse: func(t *testing.T, recorder *httptest.ResponseRecorder) {
 				require.Equal(t, http.StatusNotFound, recorder.Code)
-				require.Exactly(t, map[string]interface{}{"error": sql.ErrNoRows.Error()}, unmarshallAny(t, recorder.Body))
+				require.Exactly(t, map[string]interface{}{"error": sql.ErrNoRows.Error()}, UnmarshallAny(t, recorder.Body))
 			},
 		},
 		{
@@ -88,7 +82,7 @@ func TestGetAccountAPI(t *testing.T) {
 			},
 			checkResponse: func(t *testing.T, recorder *httptest.ResponseRecorder) {
 				require.Equal(t, http.StatusInternalServerError, recorder.Code)
-				require.Exactly(t, map[string]interface{}{"error": sql.ErrConnDone.Error()}, unmarshallAny(t, recorder.Body))
+				require.Exactly(t, map[string]interface{}{"error": sql.ErrConnDone.Error()}, UnmarshallAny(t, recorder.Body))
 			},
 		},
 	}
@@ -161,7 +155,7 @@ func TestCreateAccountAPI(t *testing.T) {
 			},
 			checkResponse: func(t *testing.T, recorder *httptest.ResponseRecorder) {
 				require.Equal(t, http.StatusBadRequest, recorder.Code)
-				require.Exactly(t, map[string]interface{}{"error": "Key: 'createAccountRequest.Owner' Error:Field validation for 'Owner' failed on the 'required' tag\nKey: 'createAccountRequest.Currency' Error:Field validation for 'Currency' failed on the 'required' tag"}, unmarshallAny(t, recorder.Body))
+				require.Exactly(t, map[string]interface{}{"error": "Key: 'createAccountRequest.Owner' Error:Field validation for 'Owner' failed on the 'required' tag\nKey: 'createAccountRequest.Currency' Error:Field validation for 'Currency' failed on the 'required' tag"}, UnmarshallAny(t, recorder.Body))
 			},
 		},
 		{
@@ -175,7 +169,7 @@ func TestCreateAccountAPI(t *testing.T) {
 			},
 			checkResponse: func(t *testing.T, recorder *httptest.ResponseRecorder) {
 				require.Equal(t, http.StatusInternalServerError, recorder.Code)
-				require.Exactly(t, map[string]interface{}{"error": sql.ErrConnDone.Error()}, unmarshallAny(t, recorder.Body))
+				require.Exactly(t, map[string]interface{}{"error": sql.ErrConnDone.Error()}, UnmarshallAny(t, recorder.Body))
 			},
 		},
 	}
@@ -268,7 +262,7 @@ func TestListAccountsAPI(t *testing.T) {
 			},
 			checkResponse: func(t *testing.T, recorder *httptest.ResponseRecorder) {
 				require.Equal(t, http.StatusBadRequest, recorder.Code)
-				require.Exactly(t, map[string]interface{}{"error": "Key: 'listAccountsRequest.Page' Error:Field validation for 'Page' failed on the 'min' tag"}, unmarshallAny(t, recorder.Body))
+				require.Exactly(t, map[string]interface{}{"error": "Key: 'listAccountsRequest.Page' Error:Field validation for 'Page' failed on the 'min' tag"}, UnmarshallAny(t, recorder.Body))
 			},
 		}, {
 			name:     "Internal Server Error",
@@ -282,7 +276,7 @@ func TestListAccountsAPI(t *testing.T) {
 			},
 			checkResponse: func(t *testing.T, recorder *httptest.ResponseRecorder) {
 				require.Equal(t, http.StatusInternalServerError, recorder.Code)
-				require.Exactly(t, map[string]interface{}{"error": sql.ErrConnDone.Error()}, unmarshallAny(t, recorder.Body))
+				require.Exactly(t, map[string]interface{}{"error": sql.ErrConnDone.Error()}, UnmarshallAny(t, recorder.Body))
 			},
 		},
 	}
@@ -356,7 +350,7 @@ func TestUpdateAccountAPI(t *testing.T) {
 			},
 			checkResponse: func(t *testing.T, recorder *httptest.ResponseRecorder) {
 				require.Equal(t, http.StatusBadRequest, recorder.Code)
-				require.Exactly(t, map[string]interface{}{"error": "Key: 'ID' Error:Field validation for 'ID' failed on the 'min' tag"}, unmarshallAny(t, recorder.Body))
+				require.Exactly(t, map[string]interface{}{"error": "Key: 'ID' Error:Field validation for 'ID' failed on the 'min' tag"}, UnmarshallAny(t, recorder.Body))
 			},
 		}, {
 			name: "Bad Request with Wrong Body",
@@ -366,7 +360,7 @@ func TestUpdateAccountAPI(t *testing.T) {
 			},
 			checkResponse: func(t *testing.T, recorder *httptest.ResponseRecorder) {
 				require.Equal(t, http.StatusBadRequest, recorder.Code)
-				require.Exactly(t, map[string]interface{}{"error": "Key: 'Balance' Error:Field validation for 'Balance' failed on the 'min' tag"}, unmarshallAny(t, recorder.Body))
+				require.Exactly(t, map[string]interface{}{"error": "Key: 'Balance' Error:Field validation for 'Balance' failed on the 'min' tag"}, UnmarshallAny(t, recorder.Body))
 			},
 		}, {
 			name: "Not Found",
@@ -379,7 +373,7 @@ func TestUpdateAccountAPI(t *testing.T) {
 			},
 			checkResponse: func(t *testing.T, recorder *httptest.ResponseRecorder) {
 				require.Equal(t, http.StatusNotFound, recorder.Code)
-				require.Exactly(t, map[string]interface{}{"error": sql.ErrNoRows.Error()}, unmarshallAny(t, recorder.Body))
+				require.Exactly(t, map[string]interface{}{"error": sql.ErrNoRows.Error()}, UnmarshallAny(t, recorder.Body))
 			},
 		}, {
 			name: "Internal Server Error",
@@ -392,7 +386,7 @@ func TestUpdateAccountAPI(t *testing.T) {
 			},
 			checkResponse: func(t *testing.T, recorder *httptest.ResponseRecorder) {
 				require.Equal(t, http.StatusInternalServerError, recorder.Code)
-				require.Exactly(t, map[string]interface{}{"error": sql.ErrConnDone.Error()}, unmarshallAny(t, recorder.Body))
+				require.Exactly(t, map[string]interface{}{"error": sql.ErrConnDone.Error()}, UnmarshallAny(t, recorder.Body))
 			},
 		},
 	}
@@ -455,7 +449,7 @@ func TestDeleteAccountAPI(t *testing.T) {
 			},
 			checkResponse: func(t *testing.T, recorder *httptest.ResponseRecorder) {
 				require.Equal(t, http.StatusBadRequest, recorder.Code)
-				require.Exactly(t, map[string]interface{}{"error": "Key: 'deleteAccountRequest.ID' Error:Field validation for 'ID' failed on the 'required' tag"}, unmarshallAny(t, recorder.Body))
+				require.Exactly(t, map[string]interface{}{"error": "Key: 'deleteAccountRequest.ID' Error:Field validation for 'ID' failed on the 'required' tag"}, UnmarshallAny(t, recorder.Body))
 			},
 		},
 		{
@@ -466,7 +460,7 @@ func TestDeleteAccountAPI(t *testing.T) {
 			},
 			checkResponse: func(t *testing.T, recorder *httptest.ResponseRecorder) {
 				require.Equal(t, http.StatusInternalServerError, recorder.Code)
-				require.Exactly(t, map[string]interface{}{"error": sql.ErrConnDone.Error()}, unmarshallAny(t, recorder.Body))
+				require.Exactly(t, map[string]interface{}{"error": sql.ErrConnDone.Error()}, UnmarshallAny(t, recorder.Body))
 			},
 		},
 	}

@@ -202,7 +202,7 @@ func TestCreateTransferAPI(t *testing.T) {
 			},
 			checkResponse: func(t *testing.T, recorder *httptest.ResponseRecorder) {
 				require.Equal(t, http.StatusInternalServerError, recorder.Code)
-				require.Exactly(t, map[string]interface{}{"error": sql.ErrConnDone.Error()}, unmarshallAny(t, recorder.Body))
+				require.Exactly(t, map[string]interface{}{"error": sql.ErrConnDone.Error()}, UnmarshallAny(t, recorder.Body))
 			},
 		},
 		{
@@ -221,7 +221,7 @@ func TestCreateTransferAPI(t *testing.T) {
 			},
 			checkResponse: func(t *testing.T, recorder *httptest.ResponseRecorder) {
 				require.Equal(t, http.StatusInternalServerError, recorder.Code)
-				require.Exactly(t, map[string]interface{}{"error": sql.ErrConnDone.Error()}, unmarshallAny(t, recorder.Body))
+				require.Exactly(t, map[string]interface{}{"error": sql.ErrConnDone.Error()}, UnmarshallAny(t, recorder.Body))
 			},
 		},
 		{
@@ -243,7 +243,7 @@ func TestCreateTransferAPI(t *testing.T) {
 			},
 			checkResponse: func(t *testing.T, recorder *httptest.ResponseRecorder) {
 				require.Equal(t, http.StatusInternalServerError, recorder.Code)
-				require.Exactly(t, map[string]interface{}{"error": sql.ErrTxDone.Error()}, unmarshallAny(t, recorder.Body))
+				require.Exactly(t, map[string]interface{}{"error": sql.ErrTxDone.Error()}, UnmarshallAny(t, recorder.Body))
 			},
 		},
 	}
