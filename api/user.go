@@ -10,7 +10,7 @@ import (
 	"github.com/lib/pq"
 )
 
-type createUserRequest struct {
+type CreateUserRequest struct {
 	Username string `json:"username" binding:"required,alphanum"`
 	Password string `json:"password" binding:"required,min=8"`
 	Name     string `json:"name" binding:"required"`
@@ -28,7 +28,7 @@ type createUserResponse struct {
 }
 
 func (server *Server) createUser(ctx *gin.Context) {
-	var req createUserRequest
+	var req CreateUserRequest
 
 	if err := ctx.ShouldBindJSON(&req); err != nil {
 		ctx.JSON(http.StatusBadRequest, errorResponse(err))
