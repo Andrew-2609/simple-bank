@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"reflect"
 	"testing"
 
 	mockdb "github.com/Andrew-2609/simple-bank/db/mock"
@@ -17,13 +18,44 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+type eqCreateUserParamsMatcher struct {
+	arg         db.CreateUserParams
+	rawPassword string
+}
+
+func (eq eqCreateUserParamsMatcher) Matches(x interface{}) bool {
+	arg, ok := x.(db.CreateUserParams)
+
+	if !ok {
+		return false
+	}
+
+	if err := util.CheckPassword(arg.HashedPassword, eq.rawPassword); err != nil {
+		return false
+	}
+
+	eq.arg.HashedPassword = arg.HashedPassword
+
+	return reflect.DeepEqual(eq.arg, arg)
+}
+
+func (eq eqCreateUserParamsMatcher) String() string {
+	return fmt.Sprintf("%v (%T)\nDon't mind the hashed password. What matters is the unhashed value, that must be \"%s\"", eq.arg, eq.arg, eq.rawPassword)
+}
+
+func EqCreateUserParams(arg db.CreateUserParams, rawPassword string) gomock.Matcher {
+	return eqCreateUserParamsMatcher{arg, rawPassword}
+}
+
 func createRandomUser() db.User {
+	hashedPassword, _ := util.HashPassword(util.RandomString(8))
+
 	return db.User{
-		Username: util.RandomOwner(),
-		Password: util.RandomString(8),
-		Name:     util.RandomString(5),
-		LastName: util.RandomString(8),
-		Email:    util.RandomEmail(),
+		Username:       util.RandomOwner(),
+		HashedPassword: hashedPassword,
+		Name:           util.RandomString(5),
+		LastName:       util.RandomString(8),
+		Email:          util.RandomEmail(),
 	}
 }
 
@@ -36,7 +68,7 @@ func unmarshallUser(t *testing.T, responseBody *bytes.Buffer) db.User {
 func TestCreateUserAPI(t *testing.T) {
 	expectedUser := createRandomUser()
 
-	validArg := db.CreateUserParams{
+	validBody := CreateUserRequest{
 		Username: util.RandomOwner(),
 		Password: util.RandomString(8),
 		Name:     util.RandomString(5),
@@ -44,18 +76,28 @@ func TestCreateUserAPI(t *testing.T) {
 		Email:    util.RandomEmail(),
 	}
 
+	hashedPassword, _ := util.HashPassword(validBody.Password)
+
 	testCases := []struct {
 		name          string
-		arg           db.CreateUserParams
+		body          CreateUserRequest
 		buildStubs    func(store *mockdb.MockStore)
 		checkResponse func(t *testing.T, recorder *httptest.ResponseRecorder)
 	}{
 		{
 			name: "Created",
-			arg:  validArg,
+			body: validBody,
 			buildStubs: func(store *mockdb.MockStore) {
+				arg := db.CreateUserParams{
+					Username:       validBody.Username,
+					HashedPassword: hashedPassword,
+					Name:           validBody.Name,
+					LastName:       validBody.LastName,
+					Email:          validBody.Email,
+				}
+
 				store.EXPECT().
-					CreateUser(gomock.Any(), gomock.Any()).
+					CreateUser(gomock.Any(), EqCreateUserParams(arg, validBody.Password)).
 					Times(1).
 					Return(expectedUser, nil)
 			},
@@ -73,23 +115,23 @@ func TestCreateUserAPI(t *testing.T) {
 		},
 		{
 			name: "Bad Request",
-			arg:  db.CreateUserParams{},
+			body: CreateUserRequest{},
 			buildStubs: func(store *mockdb.MockStore) {
 				store.EXPECT().CreateUser(gomock.Any(), gomock.Any()).Times(0)
 			},
 			checkResponse: func(t *testing.T, recorder *httptest.ResponseRecorder) {
 				require.Equal(t, http.StatusBadRequest, recorder.Code)
-				require.Exactly(t, map[string]interface{}{"error": "Key: 'createUserRequest.Username' Error:Field validation for 'Username' failed on the 'required' tag\nKey: 'createUserRequest.Password' Error:Field validation for 'Password' failed on the 'required' tag\nKey: 'createUserRequest.Name' Error:Field validation for 'Name' failed on the 'required' tag\nKey: 'createUserRequest.LastName' Error:Field validation for 'LastName' failed on the 'required' tag\nKey: 'createUserRequest.Email' Error:Field validation for 'Email' failed on the 'required' tag"}, UnmarshallAny(t, recorder.Body))
+				require.Exactly(t, map[string]interface{}{"error": "Key: 'CreateUserRequest.Username' Error:Field validation for 'Username' failed on the 'required' tag\nKey: 'CreateUserRequest.Password' Error:Field validation for 'Password' failed on the 'required' tag\nKey: 'CreateUserRequest.Name' Error:Field validation for 'Name' failed on the 'required' tag\nKey: 'CreateUserRequest.LastName' Error:Field validation for 'LastName' failed on the 'required' tag\nKey: 'CreateUserRequest.Email' Error:Field validation for 'Email' failed on the 'required' tag"}, UnmarshallAny(t, recorder.Body))
 			},
 		},
 		{
 			name: "HashPassword Internal Error",
-			arg: db.CreateUserParams{
-				Username: validArg.Username,
+			body: CreateUserRequest{
+				Username: validBody.Username,
 				Password: util.RandomString(73),
-				Name:     validArg.Name,
-				LastName: validArg.LastName,
-				Email:    validArg.Email,
+				Name:     validBody.Name,
+				LastName: validBody.LastName,
+				Email:    validBody.Email,
 			},
 			buildStubs: func(store *mockdb.MockStore) {
 				store.EXPECT().CreateUser(gomock.Any(), gomock.Any()).Times(0)
@@ -101,7 +143,7 @@ func TestCreateUserAPI(t *testing.T) {
 		},
 		{
 			name: "Unique Violation",
-			arg:  validArg,
+			body: validBody,
 			buildStubs: func(store *mockdb.MockStore) {
 				store.EXPECT().
 					CreateUser(gomock.Any(), gomock.Any()).
@@ -118,7 +160,7 @@ func TestCreateUserAPI(t *testing.T) {
 		},
 		{
 			name: "Internal Server Error",
-			arg:  validArg,
+			body: validBody,
 			buildStubs: func(store *mockdb.MockStore) {
 				store.EXPECT().
 					CreateUser(gomock.Any(), gomock.Any()).
@@ -149,7 +191,7 @@ func TestCreateUserAPI(t *testing.T) {
 
 			var buf bytes.Buffer
 
-			err := json.NewEncoder(&buf).Encode(testCase.arg)
+			err := json.NewEncoder(&buf).Encode(testCase.body)
 			require.NoError(t, err)
 
 			request, err := http.NewRequest("POST", url, &buf)
