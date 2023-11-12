@@ -97,7 +97,7 @@ func TestGetAccountAPI(t *testing.T) {
 			testCase.buildStubs(store)
 
 			// start test server and send request
-			server := NewServer(store)
+			server := newTestServer(t, store)
 			recorder := httptest.NewRecorder()
 
 			url := fmt.Sprintf("/accounts/%d", testCase.accountId)
@@ -184,7 +184,7 @@ func TestCreateAccountAPI(t *testing.T) {
 			testCase.buildStubs(store)
 
 			// start test server and send request
-			server := NewServer(store)
+			server := newTestServer(t, store)
 			recorder := httptest.NewRecorder()
 
 			url := fmt.Sprintf("/accounts")
@@ -291,7 +291,7 @@ func TestListAccountsAPI(t *testing.T) {
 			testCase.buildStubs(store)
 
 			// start test server and send request
-			server := NewServer(store)
+			server := newTestServer(t, store)
 			recorder := httptest.NewRecorder()
 
 			url := fmt.Sprintf("/accounts?page=%d&quantity=%d", testCase.page, testCase.quantity)
@@ -401,7 +401,7 @@ func TestUpdateAccountAPI(t *testing.T) {
 			testCase.buildStubs(store)
 
 			// start test server and send request
-			server := NewServer(store)
+			server := newTestServer(t, store)
 			recorder := httptest.NewRecorder()
 
 			url := fmt.Sprintf("/accounts/%d", testCase.arg.ID)
@@ -475,7 +475,7 @@ func TestDeleteAccountAPI(t *testing.T) {
 			testCase.buildStubs(store)
 
 			// start test server and send request
-			server := NewServer(store)
+			server := newTestServer(t, store)
 			recorder := httptest.NewRecorder()
 
 			url := fmt.Sprintf("/accounts/%d", testCase.accountId)
