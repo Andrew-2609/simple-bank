@@ -19,7 +19,7 @@ type CreateUserRequest struct {
 	Email    string `json:"email" binding:"required,email"`
 }
 
-type userResponse struct {
+type UserResponse struct {
 	Username          string    `json:"username"`
 	Name              string    `json:"name"`
 	LastName          string    `json:"last_name"`
@@ -28,8 +28,8 @@ type userResponse struct {
 	CreatedAt         time.Time `json:"created_at"`
 }
 
-func formatUserResponse(dbUser db.User) userResponse {
-	return userResponse{
+func formatUserResponse(dbUser db.User) UserResponse {
+	return UserResponse{
 		Username:          dbUser.Username,
 		Name:              dbUser.Name,
 		LastName:          dbUser.LastName,
@@ -80,18 +80,18 @@ func (server *Server) createUser(ctx *gin.Context) {
 	ctx.JSON(http.StatusCreated, formatUserResponse(newUser))
 }
 
-type loginRequest struct {
+type LoginRequest struct {
 	Username string `json:"username" binding:"required,alphanum"`
 	Password string `json:"password" binding:"required,min=8"`
 }
 
-type loginResponse struct {
+type LoginResponse struct {
 	AccessToken string       `json:"access_token"`
-	User        userResponse `json:"user"`
+	User        UserResponse `json:"user"`
 }
 
 func (server *Server) login(ctx *gin.Context) {
-	var req loginRequest
+	var req LoginRequest
 
 	if err := ctx.ShouldBindJSON(&req); err != nil {
 		ctx.JSON(http.StatusBadRequest, errorResponse(err))
@@ -122,7 +122,7 @@ func (server *Server) login(ctx *gin.Context) {
 		return
 	}
 
-	ctx.JSON(http.StatusOK, loginResponse{
+	ctx.JSON(http.StatusOK, LoginResponse{
 		AccessToken: token,
 		User:        formatUserResponse(foundUser),
 	})
