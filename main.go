@@ -23,9 +23,13 @@ func main() {
 		log.Fatalf("ERROR: could not connect to the Database: %v", err)
 	}
 
-	store := db.NewSQLStore(conn)
+	server, err := api.NewServer(config, db.NewSQLStore(conn))
 
-	err = api.NewServer(store).Start(config.ServerAddress)
+	if err != nil {
+		log.Fatalf("Could not create server: %v", err)
+	}
+
+	err = server.Start(config.ServerAddress)
 
 	if err != nil {
 		log.Fatalf("Could not start server: %v", err)
