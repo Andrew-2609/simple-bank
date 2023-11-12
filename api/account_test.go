@@ -61,6 +61,30 @@ func TestGetAccountAPI(t *testing.T) {
 			},
 		},
 		{
+			name:      "Unauthorized",
+			accountId: account.ID,
+			setupAuth: func(t *testing.T, request *http.Request, tokenMaker token.Maker) {
+				addAuthorization(t, request, tokenMaker, authorizationTypeBearer, "unauthorized", time.Minute)
+			},
+			buildStubs: func(store *mockdb.MockStore) {
+				store.EXPECT().GetAccount(gomock.Any(), gomock.Eq(account.ID)).Times(1).Return(account, nil)
+			},
+			checkResponse: func(t *testing.T, recorder *httptest.ResponseRecorder) {
+				require.Equal(t, http.StatusUnauthorized, recorder.Code)
+				require.Exactly(t, map[string]interface{}{"error": "account doesn't belong to the authenticated user"}, UnmarshallAny(t, recorder.Body))
+			},
+		},
+		{
+			name:       "No Authorization",
+			accountId:  account.ID,
+			setupAuth:  func(t *testing.T, request *http.Request, tokenMaker token.Maker) {},
+			buildStubs: func(store *mockdb.MockStore) { store.EXPECT().GetAccount(gomock.Any(), 0).Times(0) },
+			checkResponse: func(t *testing.T, recorder *httptest.ResponseRecorder) {
+				require.Equal(t, http.StatusUnauthorized, recorder.Code)
+				require.Exactly(t, map[string]interface{}{"error": "authorization header was not provided"}, UnmarshallAny(t, recorder.Body))
+			},
+		},
+		{
 			name:      "Bad Request",
 			accountId: 0,
 			setupAuth: func(t *testing.T, request *http.Request, tokenMaker token.Maker) {
@@ -174,6 +198,16 @@ func TestCreateAccountAPI(t *testing.T) {
 			},
 		},
 		{
+			name:       "No Authorization",
+			arg:        validArg,
+			setupAuth:  func(t *testing.T, request *http.Request, tokenMaker token.Maker) {},
+			buildStubs: func(store *mockdb.MockStore) { store.EXPECT().CreateAccount(gomock.Any(), gomock.Any()).Times(0) },
+			checkResponse: func(t *testing.T, recorder *httptest.ResponseRecorder) {
+				require.Equal(t, http.StatusUnauthorized, recorder.Code)
+				require.Exactly(t, map[string]interface{}{"error": "authorization header was not provided"}, UnmarshallAny(t, recorder.Body))
+			},
+		},
+		{
 			name: "Bad Request",
 			arg:  db.CreateAccountParams{},
 			setupAuth: func(t *testing.T, request *http.Request, tokenMaker token.Maker) {
@@ -282,7 +316,8 @@ func TestListAccountsAPI(t *testing.T) {
 				require.Equal(t, http.StatusOK, recorder.Code)
 				fmt.Printf("Array format: %v", recorder.Body)
 			},
-		}, {
+		},
+		{
 			name:     "OK With Default Parameters Values",
 			page:     1,
 			quantity: 0,
@@ -299,7 +334,19 @@ func TestListAccountsAPI(t *testing.T) {
 				require.Equal(t, http.StatusOK, recorder.Code)
 				fmt.Printf("Array format: %v", recorder.Body)
 			},
-		}, {
+		},
+		{
+			name:       "No Authorization",
+			page:       1,
+			quantity:   3,
+			setupAuth:  func(t *testing.T, request *http.Request, tokenMaker token.Maker) {},
+			buildStubs: func(store *mockdb.MockStore) { store.EXPECT().ListAccountsByOwner(gomock.Any(), gomock.Any()).Times(0) },
+			checkResponse: func(t *testing.T, recorder *httptest.ResponseRecorder) {
+				require.Equal(t, http.StatusUnauthorized, recorder.Code)
+				require.Exactly(t, map[string]interface{}{"error": "authorization header was not provided"}, UnmarshallAny(t, recorder.Body))
+			},
+		},
+		{
 			name:     "Bad Request",
 			page:     -1,
 			quantity: 3,
@@ -313,7 +360,8 @@ func TestListAccountsAPI(t *testing.T) {
 				require.Equal(t, http.StatusBadRequest, recorder.Code)
 				require.Exactly(t, map[string]interface{}{"error": "Key: 'listAccountsRequest.Page' Error:Field validation for 'Page' failed on the 'min' tag"}, UnmarshallAny(t, recorder.Body))
 			},
-		}, {
+		},
+		{
 			name:     "Internal Server Error",
 			page:     1,
 			quantity: 3,
