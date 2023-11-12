@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"reflect"
+	"regexp"
 	"testing"
 
 	mockdb "github.com/Andrew-2609/simple-bank/db/mock"
@@ -47,16 +48,20 @@ func EqCreateUserParams(arg db.CreateUserParams, rawPassword string) gomock.Matc
 	return eqCreateUserParamsMatcher{arg, rawPassword}
 }
 
-func createRandomUser() db.User {
-	hashedPassword, _ := util.HashPassword(util.RandomString(8))
+func createRandomUser() (user db.User, password string) {
+	password = util.RandomString(8)
 
-	return db.User{
+	hashedPassword, _ := util.HashPassword(password)
+
+	user = db.User{
 		Username:       util.RandomOwner(),
 		HashedPassword: hashedPassword,
 		Name:           util.RandomString(5),
 		LastName:       util.RandomString(8),
 		Email:          util.RandomEmail(),
 	}
+
+	return
 }
 
 func unmarshallUser(t *testing.T, responseBody *bytes.Buffer) db.User {
@@ -66,7 +71,7 @@ func unmarshallUser(t *testing.T, responseBody *bytes.Buffer) db.User {
 }
 
 func TestCreateUserAPI(t *testing.T) {
-	expectedUser := createRandomUser()
+	expectedUser, _ := createRandomUser()
 
 	validBody := CreateUserRequest{
 		Username: util.RandomOwner(),
@@ -188,6 +193,126 @@ func TestCreateUserAPI(t *testing.T) {
 			recorder := httptest.NewRecorder()
 
 			url := fmt.Sprintf("/users")
+
+			var buf bytes.Buffer
+
+			err := json.NewEncoder(&buf).Encode(testCase.body)
+			require.NoError(t, err)
+
+			request, err := http.NewRequest("POST", url, &buf)
+			require.NoError(t, err)
+
+			server.router.ServeHTTP(recorder, request)
+
+			// check response
+			testCase.checkResponse(t, recorder)
+		})
+	}
+}
+
+func TestLoginAPI(t *testing.T) {
+	user, password := createRandomUser()
+
+	body := LoginRequest{Username: user.Username, Password: password}
+
+	testCases := []struct {
+		name          string
+		body          LoginRequest
+		buildStubs    func(store *mockdb.MockStore)
+		checkResponse func(t *testing.T, recorder *httptest.ResponseRecorder)
+	}{{
+		name: "Login OK",
+		body: body,
+		buildStubs: func(store *mockdb.MockStore) {
+			store.EXPECT().
+				GetUser(gomock.Any(), gomock.Eq(user.Username)).
+				Times(1).
+				Return(user, nil)
+		},
+		checkResponse: func(t *testing.T, recorder *httptest.ResponseRecorder) {
+			require.Equal(t, http.StatusOK, recorder.Code)
+
+			loginResponse, err := util.UnmarshallJsonBody[LoginResponse](recorder.Body)
+			require.NoError(t, err)
+
+			tokenRegex := regexp.MustCompile(`^v2\.local\..{280,}$`)
+			require.Regexp(t, tokenRegex, loginResponse.AccessToken)
+			require.Exactly(t, UserResponse{
+				Username:          user.Username,
+				Name:              user.Name,
+				LastName:          user.LastName,
+				Email:             user.Email,
+				PasswordChangedAt: user.PasswordChangedAt,
+				CreatedAt:         user.CreatedAt,
+			}, loginResponse.User)
+		},
+	}, {
+		name: "Bad Request",
+		body: LoginRequest{},
+		buildStubs: func(store *mockdb.MockStore) {
+			store.EXPECT().
+				GetUser(gomock.Any(), gomock.Eq(gomock.Any())).
+				Times(0)
+		},
+		checkResponse: func(t *testing.T, recorder *httptest.ResponseRecorder) {
+			require.Equal(t, http.StatusBadRequest, recorder.Code)
+			require.Exactly(t, map[string]interface{}{"error": "Key: 'LoginRequest.Username' Error:Field validation for 'Username' failed on the 'required' tag\nKey: 'LoginRequest.Password' Error:Field validation for 'Password' failed on the 'required' tag"}, UnmarshallAny(t, recorder.Body))
+		},
+	}, {
+		name: "User Not Found",
+		body: body,
+		buildStubs: func(store *mockdb.MockStore) {
+			store.EXPECT().
+				GetUser(gomock.Any(), gomock.Eq(user.Username)).
+				Times(1).
+				Return(db.User{}, sql.ErrNoRows)
+		},
+		checkResponse: func(t *testing.T, recorder *httptest.ResponseRecorder) {
+			require.Equal(t, http.StatusNotFound, recorder.Code)
+			require.Exactly(t, map[string]interface{}{"error": sql.ErrNoRows.Error()}, UnmarshallAny(t, recorder.Body))
+		},
+	}, {
+		name: "Internal Server Error",
+		body: body,
+		buildStubs: func(store *mockdb.MockStore) {
+			store.EXPECT().
+				GetUser(gomock.Any(), gomock.Eq(user.Username)).
+				Times(1).
+				Return(db.User{}, sql.ErrConnDone)
+		},
+		checkResponse: func(t *testing.T, recorder *httptest.ResponseRecorder) {
+			require.Equal(t, http.StatusInternalServerError, recorder.Code)
+			require.Exactly(t, map[string]interface{}{"error": sql.ErrConnDone.Error()}, UnmarshallAny(t, recorder.Body))
+		},
+	}, {
+		name: "Unauthorized",
+		body: LoginRequest{Username: user.Username, Password: util.RandomString(8)},
+		buildStubs: func(store *mockdb.MockStore) {
+			store.EXPECT().
+				GetUser(gomock.Any(), gomock.Eq(user.Username)).
+				Times(1).
+				Return(user, nil)
+		},
+		checkResponse: func(t *testing.T, recorder *httptest.ResponseRecorder) {
+			require.Equal(t, http.StatusUnauthorized, recorder.Code)
+			require.Exactly(t, map[string]interface{}{"error": "crypto/bcrypt: hashedPassword is not the hash of the given password"}, UnmarshallAny(t, recorder.Body))
+		},
+	}}
+
+	for _, testCase := range testCases {
+		t.Run(testCase.name, func(t *testing.T) {
+			ctrl := gomock.NewController(t)
+			defer ctrl.Finish()
+
+			// build stubs
+			store := mockdb.NewMockStore(ctrl)
+			testCase.buildStubs(store)
+
+			// start test server and send request
+			server := newTestServer(t, store)
+			recorder := httptest.NewRecorder()
+
+			url := fmt.Sprintf("/users/login")
 
 			var buf bytes.Buffer
 
