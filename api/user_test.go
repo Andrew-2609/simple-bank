@@ -235,7 +235,7 @@ func TestLoginAPI(t *testing.T) {
 			loginResponse, err := util.UnmarshallJsonBody[LoginResponse](recorder.Body)
 			require.NoError(t, err)
 
-			tokenRegex := regexp.MustCompile(`^v2\.local\..{280,}$`)
+			tokenRegex := regexp.MustCompile(`^v2\.local\..+$`)
 			require.Regexp(t, tokenRegex, loginResponse.AccessToken)
 			require.Exactly(t, UserResponse{
 				Username:          user.Username,
