@@ -443,6 +443,10 @@ func TestUpdateAccountAPI(t *testing.T) {
 			},
 			buildStubs: func(store *mockdb.MockStore) {
 				store.EXPECT().
+					GetAccount(gomock.Any(), gomock.Eq(validArg.ID)).
+					Times(1).
+					Return(originalAccount, nil)
+				store.EXPECT().
 					UpdateAccount(gomock.Any(), gomock.Eq(validArg)).
 					Times(1).
 					Return(updatedAccount, nil)
@@ -451,33 +455,69 @@ func TestUpdateAccountAPI(t *testing.T) {
 				require.Equal(t, http.StatusOK, recorder.Code)
 				require.Exactly(t, updatedAccount, unmarshallAccount(t, recorder.Body))
 			},
-		}, {
+		},
+		{
+			name: "Unauthorized",
+			arg:  validArg,
+			setupAuth: func(t *testing.T, request *http.Request, tokenMaker token.Maker) {
+				addAuthorization(t, request, tokenMaker, authorizationTypeBearer, "unauthorized", time.Minute)
+			},
+			buildStubs: func(store *mockdb.MockStore) {
+				store.EXPECT().
+					GetAccount(gomock.Any(), gomock.Eq(validArg.ID)).
+					Times(1).
+					Return(originalAccount, nil)
+				store.EXPECT().UpdateAccount(gomock.Any(), gomock.Any()).Times(0)
+			},
+			checkResponse: func(t *testing.T, recorder *httptest.ResponseRecorder) {
+				require.Equal(t, http.StatusUnauthorized, recorder.Code)
+				require.Exactly(t, map[string]interface{}{"error": "account doesn't belong to the authenticated user"}, UnmarshallAny(t, recorder.Body))
+			},
+		},
+		{
+			name:      "No Authorization",
+			arg:       validArg,
+			setupAuth: func(t *testing.T, request *http.Request, tokenMaker token.Maker) {},
+			buildStubs: func(store *mockdb.MockStore) {
+				store.EXPECT().GetAccount(gomock.Any(), gomock.Any()).Times(0)
+				store.EXPECT().UpdateAccount(gomock.Any(), gomock.Any()).Times(0)
+			},
+			checkResponse: func(t *testing.T, recorder *httptest.ResponseRecorder) {
+				require.Equal(t, http.StatusUnauthorized, recorder.Code)
+				require.Exactly(t, map[string]interface{}{"error": "authorization header was not provided"}, UnmarshallAny(t, recorder.Body))
+			},
+		},
+		{
 			name: "Bad Request with Wrong Params",
 			arg:  db.UpdateAccountParams{ID: -1, Balance: 3500},
 			setupAuth: func(t *testing.T, request *http.Request, tokenMaker token.Maker) {
 				addAuthorization(t, request, tokenMaker, authorizationTypeBearer, user.Username, time.Minute)
 			},
 			buildStubs: func(store *mockdb.MockStore) {
+				store.EXPECT().GetAccount(gomock.Any(), gomock.Any()).Times(0)
 				store.EXPECT().UpdateAccount(gomock.Any(), gomock.Any()).Times(0)
 			},
 			checkResponse: func(t *testing.T, recorder *httptest.ResponseRecorder) {
 				require.Equal(t, http.StatusBadRequest, recorder.Code)
 				require.Exactly(t, map[string]interface{}{"error": "Key: 'ID' Error:Field validation for 'ID' failed on the 'min' tag"}, UnmarshallAny(t, recorder.Body))
 			},
-		}, {
+		},
+		{
 			name: "Bad Request with Wrong Body",
 			arg:  db.UpdateAccountParams{ID: originalAccount.ID, Balance: -3000},
 			setupAuth: func(t *testing.T, request *http.Request, tokenMaker token.Maker) {
 				addAuthorization(t, request, tokenMaker, authorizationTypeBearer, user.Username, time.Minute)
 			},
 			buildStubs: func(store *mockdb.MockStore) {
+				store.EXPECT().GetAccount(gomock.Any(), gomock.Any()).Times(0)
 				store.EXPECT().UpdateAccount(gomock.Any(), gomock.Any()).Times(0)
 			},
 			checkResponse: func(t *testing.T, recorder *httptest.ResponseRecorder) {
 				require.Equal(t, http.StatusBadRequest, recorder.Code)
 				require.Exactly(t, map[string]interface{}{"error": "Key: 'Balance' Error:Field validation for 'Balance' failed on the 'min' tag"}, UnmarshallAny(t, recorder.Body))
 			},
-		}, {
+		},
+		{
 			name: "Not Found",
 			arg:  validArg,
 			setupAuth: func(t *testing.T, request *http.Request, tokenMaker token.Maker) {
@@ -485,15 +525,17 @@ func TestUpdateAccountAPI(t *testing.T) {
 			},
 			buildStubs: func(store *mockdb.MockStore) {
 				store.EXPECT().
-					UpdateAccount(gomock.Any(), validArg).
+					GetAccount(gomock.Any(), gomock.Eq(validArg.ID)).
 					Times(1).
 					Return(db.Account{}, sql.ErrNoRows)
+				store.EXPECT().UpdateAccount(gomock.Any(), gomock.Any()).Times(0)
 			},
 			checkResponse: func(t *testing.T, recorder *httptest.ResponseRecorder) {
 				require.Equal(t, http.StatusNotFound, recorder.Code)
 				require.Exactly(t, map[string]interface{}{"error": sql.ErrNoRows.Error()}, UnmarshallAny(t, recorder.Body))
 			},
-		}, {
+		},
+		{
 			name: "Internal Server Error",
 			arg:  validArg,
 			setupAuth: func(t *testing.T, request *http.Request, tokenMaker token.Maker) {
@@ -501,7 +543,11 @@ func TestUpdateAccountAPI(t *testing.T) {
 			},
 			buildStubs: func(store *mockdb.MockStore) {
 				store.EXPECT().
-					UpdateAccount(gomock.Any(), validArg).
+					GetAccount(gomock.Any(), gomock.Eq(validArg.ID)).
+					Times(1).
+					Return(originalAccount, nil)
+				store.EXPECT().
+					UpdateAccount(gomock.Any(), gomock.Eq(validArg)).
 					Times(1).
 					Return(db.Account{}, sql.ErrConnDone)
 			},
