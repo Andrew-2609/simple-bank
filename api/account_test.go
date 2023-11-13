@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/golang/mock/gomock"
+	"github.com/lib/pq"
 	"github.com/stretchr/testify/require"
 
 	mockdb "github.com/Andrew-2609/simple-bank/db/mock"
@@ -219,6 +220,26 @@ func TestCreateAccountAPI(t *testing.T) {
 			checkResponse: func(t *testing.T, recorder *httptest.ResponseRecorder) {
 				require.Equal(t, http.StatusBadRequest, recorder.Code)
 				require.Exactly(t, map[string]interface{}{"error": "Key: 'createAccountRequest.Currency' Error:Field validation for 'Currency' failed on the 'required' tag"}, UnmarshallAny(t, recorder.Body))
+			},
+		},
+		{
+			name: "Unique Violation",
+			arg:  validArg,
+			setupAuth: func(t *testing.T, request *http.Request, tokenMaker token.Maker) {
+				addAuthorization(t, request, tokenMaker, authorizationTypeBearer, user.Username, time.Minute)
+			},
+			buildStubs: func(store *mockdb.MockStore) {
+				store.EXPECT().
+					CreateAccount(gomock.Any(), gomock.Eq(expectedArg)).
+					Times(1).
+					Return(db.Account{}, &pq.Error{
+						Code:    pq.ErrorCode("23505"),
+						Message: "duplicate key value violates unique constraint \"owner_currency_uq\"",
+					})
+			},
+			checkResponse: func(t *testing.T, recorder *httptest.ResponseRecorder) {
+				require.Equal(t, http.StatusUnprocessableEntity, recorder.Code)
+				require.Exactly(t, map[string]interface{}{"error": "pq: duplicate key value violates unique constraint \"owner_currency_uq\""}, UnmarshallAny(t, recorder.Body))
 			},
 		},
 		{
