@@ -182,6 +182,24 @@ func (server *Server) deleteAccount(ctx *gin.Context) {
 		return
 	}
 
+	originalAccount, err := server.store.GetAccount(ctx, req.ID)
+
+	if err != nil {
+		if err == sql.ErrNoRows {
+			ctx.JSON(http.StatusNotFound, errorResponse(err))
+			return
+		}
+
+		ctx.JSON(http.StatusInternalServerError, errorResponse(err))
+		return
+	}
+
+	if authPayload := ctx.MustGet(authorizationPayloadKey).(*token.Payload); originalAccount.Owner != authPayload.Username {
+		err := errors.New("account doesn't belong to the authenticated user")
+		ctx.JSON(http.StatusUnauthorized, errorResponse(err))
+		return
+	}
+
 	if err := server.store.DeleteAccount(ctx, req.ID); err != nil {
 		ctx.JSON(http.StatusInternalServerError, errorResponse(err))
 		return
