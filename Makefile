@@ -22,10 +22,13 @@ sqlc:
 mock:
 	mockgen -destination db/mock/store.go -package mockdb github.com/Andrew-2609/simple-bank/db/sqlc Store
 
-test:
+testlocal:
 	go clean -testcache && grc go test -v -cover ./...
+
+test:
+	go clean -testcache && go test -v -cover ./...
 
 up:
 	go run main.go
 
-.PHONY: postgres createdb dropdb enterdb migrateup migratedown sqlc mock test up
+.PHONY: postgres createdb dropdb enterdb migrateup migratedown sqlc mock testlocal test up
