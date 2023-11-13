@@ -139,10 +139,7 @@ func (server *Server) updateAccount(ctx *gin.Context) {
 		return
 	}
 
-	updatedAccount, err := server.store.UpdateAccount(ctx, db.UpdateAccountParams{
-		ID:      req.params.ID,
-		Balance: req.body.Balance,
-	})
+	originalAccount, err := server.store.GetAccount(ctx, req.params.ID)
 
 	if err != nil {
 		if err == sql.ErrNoRows {
@@ -150,6 +147,22 @@ func (server *Server) updateAccount(ctx *gin.Context) {
 			return
 		}
 
+		ctx.JSON(http.StatusInternalServerError, errorResponse(err))
+		return
+	}
+
+	if authPayload := ctx.MustGet(authorizationPayloadKey).(*token.Payload); originalAccount.Owner != authPayload.Username {
+		err := errors.New("account doesn't belong to the authenticated user")
+		ctx.JSON(http.StatusUnauthorized, errorResponse(err))
+		return
+	}
+
+	updatedAccount, err := server.store.UpdateAccount(ctx, db.UpdateAccountParams{
+		ID:      req.params.ID,
+		Balance: req.body.Balance,
+	})
+
+	if err != nil {
 		ctx.JSON(http.StatusInternalServerError, errorResponse(err))
 		return
 	}
