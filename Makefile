@@ -1,5 +1,5 @@
 postgres:
-	docker run --name postgres12 --network bank-network -p 5432:5432 -e POSTGRES_USER=root -e POSTGRES_PASSWORD=secret -d postgres:12-alpine
+	docker run --name postgres12 --network bank-network -p 5433:5432 -e POSTGRES_USER=root -e POSTGRES_PASSWORD=secret -d postgres:12-alpine
 
 createdb:
 	docker exec -it postgres12 createdb --username=root --owner=root simple_bank
@@ -11,10 +11,10 @@ enterdb:
 	docker exec -it postgres12 psql -U root simple_bank
 
 migrateup:
-	migrate -path db/migrations -database "postgresql://root:secret@localhost:5432/simple_bank?sslmode=disable" -verbose up $(n)
+	migrate -path db/migrations -database "postgresql://root:secret@localhost:5433/simple_bank?sslmode=disable" -verbose up $(n)
 
 migratedown:
-	migrate -path db/migrations -database "postgresql://root:secret@localhost:5432/simple_bank?sslmode=disable" -verbose down $(n)
+	migrate -path db/migrations -database "postgresql://root:secret@localhost:5433/simple_bank?sslmode=disable" -verbose down $(n)
 
 sqlc:
 	sqlc generate
